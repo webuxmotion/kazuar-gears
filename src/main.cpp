@@ -1,13 +1,12 @@
 #include <Arduino.h>
-#include <lilka.h>
 #include <AlfredoCRSF.h>
 #include <HardwareSerial.h>
 
-#define PIN_RX_OUT 44
-#define PIN_TX_OUT 43
+#define PIN_RX_OUT 6
+#define PIN_TX_OUT 6
 
-#define PIN_RX 14
-#define PIN_TX 13
+#define PIN_RX 5
+#define PIN_TX 5
 
 #define TX12_MIN 990
 #define TX12_MAX 1998
@@ -92,15 +91,46 @@ void sendModifiedChannels(
   crsfOut.writePacket(CRSF_SYNC_BYTE, CRSF_FRAMETYPE_RC_CHANNELS_PACKED, &crsfChannels, sizeof(crsfChannels));
 }
 
-void setup() {
-  lilka::begin();
+void relayOn() {
+  digitalWrite(1, LOW);
+  digitalWrite(2, LOW);
+  digitalWrite(3, LOW);
+  digitalWrite(4, LOW);
+  digitalWrite(7, LOW);
+  digitalWrite(8, LOW);
+  digitalWrite(9, LOW);
+  digitalWrite(10, LOW);
+}
 
+void relayOff() {
+  digitalWrite(1, HIGH);
+  digitalWrite(2, HIGH);
+  digitalWrite(3, HIGH);
+  digitalWrite(4, HIGH);
+  digitalWrite(7, HIGH);
+  digitalWrite(8, HIGH);
+  digitalWrite(9, HIGH);
+  digitalWrite(10, HIGH);
+}
+
+void setup() {
   Serial.begin(9600);
+
+   pinMode(1, OUTPUT);
+   pinMode(2, OUTPUT);
+   pinMode(3, OUTPUT);
+   pinMode(4, OUTPUT);
+   pinMode(7, OUTPUT);
+   pinMode(8, OUTPUT);
+   pinMode(9, OUTPUT);
+   pinMode(10, OUTPUT);
+
+   relayOff();
 
   crsfSerialOut.begin(CRSF_BAUDRATE, SERIAL_8N1, PIN_RX_OUT, PIN_TX_OUT);
   crsfOut.begin(crsfSerialOut);
 
-  delay(300);
+  delay(30);
 
   crsfSerial.begin(CRSF_BAUDRATE, SERIAL_8N1, PIN_RX, PIN_TX);
   crsf.begin(crsfSerial);
@@ -110,25 +140,19 @@ int convertCh(int chValue) {
   return map(chValue, TX12_MIN, TX12_MAX, CRSF_CHANNEL_VALUE_MIN, CRSF_CHANNEL_VALUE_2000);
 }
 
+
+
 void loop() {
-  lilka::Canvas canvas; 
-  int batteryLevel = lilka::battery.readLevel();
-  String batteryMessage = "Bat: " + String(batteryLevel) + "%";
-
-  // put your main code here, to run repeatedly:
-
   crsf.update();
 
-  Serial.println(crsf.isLinkUp());
+  
 
-  //sendChannels(crsf);
-
-  // Serial.print(crsf.getChannel(1));
-  // Serial.println(',');
+  //Serial.println(crsf.isLinkUp());
 
   int roll = convertCh(crsf.getChannel(1));
   int pitch = convertCh(crsf.getChannel(2));
   int yaw = convertCh(crsf.getChannel(3));
+  int yaw_out = yaw;
   int throttle = convertCh(crsf.getChannel(4));
 
   int ch5_E = convertCh(crsf.getChannel(5));
@@ -140,87 +164,56 @@ void loop() {
   int ch11_S1 = convertCh(crsf.getChannel(11));
   int ch12_S2 = convertCh(crsf.getChannel(12));
 
+  if (ch8_C > 1600) {
+    relayOn();
+  } else {
+    relayOff();
+  }
 
   // auto transmition
   boolean autoTransmition = false;
 
   if (ch6_F > 1600) {
     autoTransmition = true;
+  } else {
+    autoTransmition = false;
   }
   // END. auto transmition
 
-  canvas.fillScreen(lilka::colors::Black);
-  canvas.setTextColor(lilka::colors::White);
+  Serial.print("throttle: ");
+  Serial.print(yaw);
+  Serial.print("| roll: ");
+  Serial.print(roll);
+  Serial.print("| Pitch: ");
+  Serial.print(pitch);
+  Serial.print("| prevPitch: ");
+  Serial.print(prevPitch);
+  Serial.print("| gear: ");
+  Serial.print(gear);
+  Serial.print("| prevPitchStartMillis : ");
+  Serial.print(prevPitchStartMillis );
 
-  int spacer = 17;
-  int topRowStart = 30;
-  int leftCellStart = 5;
-
-  int rightCellStart = 150;
-
-  canvas.setCursor(leftCellStart, topRowStart);
-  canvas.print("roll: " + String(roll));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 1);
-  canvas.print("pitch: " + String(pitch));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 2);
-  canvas.print("throttle: " + String(yaw));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 3);
-  canvas.print("yaw: " + String(throttle));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 4);
-  canvas.print("ch5_E: " + String(ch5_E));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 5);
-  canvas.print("ch6_F: " + String(ch6_F));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 6);
-  canvas.print("ch7_B: " + String(ch7_B));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 7);
-  canvas.print("ch8_C: " + String(ch8_C));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 8);
-  canvas.print("ch9_A: " + String(ch9_A));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 9);
-  canvas.print("ch10_D: " + String(ch10_D));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 10);
-  canvas.print("ch11_S1: " + String(ch11_S1));
-
-  canvas.setCursor(leftCellStart, topRowStart + spacer * 11);
-  canvas.print("ch12_S2: " + String(ch12_S2));
-
-  canvas.setCursor(rightCellStart, topRowStart);
-  canvas.print(batteryMessage);
+  Serial.println("");
 
   if (autoTransmition) {
 
-    canvas.setCursor(rightCellStart, topRowStart + spacer * 1);
-    canvas.print("AUTO MODE");
-
-    canvas.setCursor(rightCellStart, topRowStart + spacer * 2);
-    canvas.print("GEAR: " + String(gear));
-
     if (gear == 0) {
-      yaw = 206;
+      yaw_out = 100;
     } else if (gear == 1) {
-      yaw = 400;
+      yaw_out = 375;
     } else if (gear == 2) {
-      yaw = 600;
+      yaw_out = 385;
     } else if (gear == 3) {
-      yaw = 1000;
+      yaw_out = 395;
     } else {
-      yaw = 206;
+      yaw_out = 206;
     }
 
-    if (pitch > 1010 && prevPitch == 0) {
+    
+    if (pitch > 1100 && prevPitch == 0) {
       prevPitch = pitch;
       prevPitchStartMillis = millis();
-    } else if (prevPitch && pitch > 980 && pitch < 1010) {
+    } else if (prevPitch && pitch > 980 && pitch < 1100) {
       if (millis() - prevPitchStartMillis < 300) {
         if (gear < 3) {
           gear++;
@@ -229,16 +222,33 @@ void loop() {
 
       prevPitch = 0;
       prevPitchStartMillis = 0;
-    }
-  }
+    } else if (pitch < 850 && pitch > 251 && prevPitch == 0) {
+      prevPitch = pitch;
+      prevPitchStartMillis = millis();
+    } else if (prevPitch && pitch > 980 && pitch < 1100) {
+      if (millis() - prevPitchStartMillis < 300) {
+        if (gear > 0) {
+          gear--;
+        }
+      }
 
-  lilka::display.drawCanvas(&canvas);
+      prevPitch = 0;
+      prevPitchStartMillis = 0;
+    } else if (pitch < 250) {
+      gear = 0;
+    }
+
+  } else {
+    prevPitch = 0;
+    prevPitchStartMillis = 0;
+    gear = 0;
+  }
 
   if (crsf.isLinkUp()) {
       sendModifiedChannels(
         roll,
         pitch,
-        yaw,
+        yaw_out,
         throttle,
         ch5_E,
         ch6_F,
