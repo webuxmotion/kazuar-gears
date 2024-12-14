@@ -2,6 +2,26 @@
 #include <AlfredoCRSF.h>
 #include <HardwareSerial.h>
 
+#include <WiFi.h>
+#include <WiFiUdp.h>
+
+// Налаштування Wi-Fi
+const char* ssid = "RCController";  // Назва Wi-Fi мережі пульта
+const char* password = "12345678";  // Пароль до мережі пульта
+
+// Налаштування UDP
+WiFiUDP udp;
+const int udpPort = 8888;  // Порт для прийому даних
+
+// Структура для отримання даних
+struct ControlData {
+  int throttle;  // Газ
+  int steering;  // Кермо
+};
+
+ControlData controlData;
+
+
 #define PIN_RX_OUT 6
 #define PIN_TX_OUT 6
 
@@ -134,6 +154,19 @@ void setup() {
 
   crsfSerial.begin(CRSF_BAUDRATE, SERIAL_8N1, PIN_RX, PIN_TX);
   crsf.begin(crsfSerial);
+
+  delay(300);
+
+  // Підключення до точки доступу пульта
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi!");
+
+  // Підготовка UDP
+  udp.begin(udpPort);
 }
 
 int convertCh(int chValue) {
@@ -145,7 +178,20 @@ int convertCh(int chValue) {
 void loop() {
   crsf.update();
 
-  
+  int packetSize = udp.parsePacket();
+  if (packetSize) {
+    // Отримання даних з пульта
+    udp.read((uint8_t*)&controlData, sizeof(controlData));
+
+    // Виведення даних для монітору
+    Serial.print("Throttle: ");
+    Serial.print(controlData.throttle);
+
+    Serial.print(", Steering: ");
+    Serial.println(controlData.steering);
+
+    // Тут можна додати код для керування мотором або сервоприводом
+  }
 
   //Serial.println(crsf.isLinkUp());
 
@@ -180,20 +226,20 @@ void loop() {
   }
   // END. auto transmition
 
-  Serial.print("throttle: ");
-  Serial.print(yaw);
-  Serial.print("| roll: ");
-  Serial.print(roll);
-  Serial.print("| Pitch: ");
-  Serial.print(pitch);
-  Serial.print("| prevPitch: ");
-  Serial.print(prevPitch);
-  Serial.print("| gear: ");
-  Serial.print(gear);
-  Serial.print("| prevPitchStartMillis : ");
-  Serial.print(prevPitchStartMillis );
+  // Serial.print("throttle: ");
+  // Serial.print(yaw);
+  // Serial.print("| roll: ");
+  // Serial.print(roll);
+  // Serial.print("| Pitch: ");
+  // Serial.print(pitch);
+  // Serial.print("| prevPitch: ");
+  // Serial.print(prevPitch);
+  // Serial.print("| gear: ");
+  // Serial.print(gear);
+  // Serial.print("| prevPitchStartMillis : ");
+  // Serial.print(prevPitchStartMillis );
 
-  Serial.println("");
+  // Serial.println("");
 
   if (autoTransmition) {
 
@@ -242,6 +288,10 @@ void loop() {
     prevPitch = 0;
     prevPitchStartMillis = 0;
     gear = 0;
+  }
+
+  if (controlData.throttle == 1000) {
+    yaw_out = 375;
   }
 
   if (crsf.isLinkUp()) {
